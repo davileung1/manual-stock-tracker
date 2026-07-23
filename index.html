@@ -239,7 +239,7 @@
       fetchBtn.textContent = 'Fetch Product Data';
     }
 
-   function copyColumn(columnIndex, columnName) {
+   function copyColumn(columnIndex, columnName, btnElement) {
       const rows = document.querySelectorAll('#tableBody tr');
       let textToCopy = '';
 
@@ -250,16 +250,24 @@
       });
 
       if (!textToCopy.trim()) {
-        alert('No data available to copy!');
         return;
       }
 
       navigator.clipboard.writeText(textToCopy).then(() => {
-        alert(`Copied '${columnName}' values (without header)! Ready to paste into Excel.`);
+        // Change button feedback temporarily
+        const originalText = btnElement.textContent;
+        btnElement.textContent = '✓ Copied!';
+        btnElement.style.backgroundColor = '#e6f4ea';
+        btnElement.style.color = '#137333';
+
+        setTimeout(() => {
+          btnElement.textContent = originalText;
+          btnElement.style.backgroundColor = '';
+          btnElement.style.color = '';
+        }, 1500);
       }).catch(err => {
-        alert('Failed to copy: ' + err);
+        console.error('Failed to copy: ', err);
       });
-    }
     }
   </script>
 </body>
