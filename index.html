@@ -98,7 +98,7 @@
     <tbody id="tableBody"></tbody>
   </table>
 
-  <script>
+ <script>
     async function checkStock() {
       const input = document.getElementById('productInput').value;
       const lines = input.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
@@ -126,25 +126,47 @@
         try {
           const targetUrl = `https://shop.samsung.com/tokocommercewebservices/v2/hk_en/products/${encodeURIComponent(code)}`;
           
-          // Use CORS proxy if direct browser request gets blocked by CORS policies
-          const response = await fetch(targetUrl);
+          const response = await fetch(targetUrl, {
+            headers: {
+              'Accept': 'application/json, application/xml, text/xml'
+            }
+          });
 
           if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
           }
 
-          const xmlText = await response.text();
-          const parser = new DOMParser();
-          const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-          
-          const stockNode = xmlDoc.querySelector("stockLevel");
-          const stock = stockNode ? stockNode.textContent : 'Not found';
+          const responseText = await response.text();
+          let stock = 'Not found';
+
+          // 1. Try parsing response as JSON
+          try {
+            const data = JSON.parse(responseText);
+            if (data.stock && data.stock.stockLevel !== undefined) {
+              stock = data.stock.stockLevel;
+            } else if (data.stockLevel !== undefined) {
+              stock = data.stockLevel;
+            } else if (data.stock && data.stock.stockLevelStatus) {
+              stock = data.stock.stockLevelStatus; // Fallback if numerical stock is hidden
+            }
+          } catch (e) {
+            // 2. If not JSON, parse as XML
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(responseText, "text/xml");
+            const stockNode = xmlDoc.getElementsByTagName("stockLevel")[0] || 
+                              xmlDoc.querySelector("stockLevel") ||
+                              xmlDoc.getElementsByTagName("stockLevelStatus")[0];
+            
+            if (stockNode && stockNode.textContent) {
+              stock = stockNode.textContent;
+            }
+          }
 
           row.cells[1].textContent = stock;
           row.cells[2].innerHTML = `<span class="status-badge status-ok">Success</span>`;
         } catch (err) {
           row.cells[1].textContent = 'N/A';
-          row.cells[2].innerHTML = `<span class="status-badge status-err">Failed / CORS Error</span>`;
+          row.cells[2].innerHTML = `<span class="status-badge status-err">Failed / Error</span>`;
         }
       }
 
@@ -164,7 +186,7 @@
       });
 
       navigator.clipboard.writeText(tsv).then(() => {
-        alert('Copied to clipboard! You can now paste directly into Excel.');
+        alert('Copied! You can now paste directly into Excel.');
       }).catch(err => {
         alert('Failed to copy: ' + err);
       });
