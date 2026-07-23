@@ -3,26 +3,34 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Product Stock Checker</title>
+  <title>Admin Stock Tracker - Samsung eStore</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      max-width: 900px;
+      max-width: 1100px;
       margin: 40px auto;
       padding: 0 20px;
       color: #333;
+      background-color: #f5f5f7;
     }
-    h2 { margin-bottom: 8px; }
-    p { color: #666; margin-top: 0; }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+    h2 { margin-bottom: 4px; color: #1d1d1f; }
+    p { color: #6e6e73; margin-top: 0; margin-bottom: 20px; }
     textarea {
       width: 100%;
       height: 150px;
-      padding: 10px;
+      padding: 12px;
       box-sizing: border-box;
-      border: 1px solid #ccc;
-      border-radius: 6px;
+      border: 1px solid #d2d2d7;
+      border-radius: 8px;
       font-family: monospace;
       font-size: 14px;
+      resize: vertical;
     }
     .btn-group {
       margin: 16px 0;
@@ -33,72 +41,106 @@
       background-color: #0071e3;
       color: white;
       border: none;
-      padding: 10px 18px;
-      border-radius: 6px;
+      padding: 10px 20px;
+      border-radius: 8px;
       font-size: 14px;
       cursor: pointer;
       font-weight: 500;
+      transition: background-color 0.2s;
     }
-    button:hover { background-color: #005bb5; }
-    button.secondary {
-      background-color: #f5f5f7;
-      color: #333;
-      border: 1px solid #ccc;
-    }
-    button.secondary:hover { background-color: #e5e5e7; }
+    button:hover { background-color: #0077ed; }
     button:disabled {
-      background-color: #ccc;
+      background-color: #f2f2f7;
+      color: #8e8e93;
       cursor: not-allowed;
     }
+    .btn-copy-header {
+      background-color: #e5e5ea;
+      color: #1d1d1f;
+      padding: 4px 8px;
+      font-size: 12px;
+      border-radius: 6px;
+      margin-left: 6px;
+      font-weight: normal;
+    }
+    .btn-copy-header:hover { background-color: #d1d1d6; }
     table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 20px;
     }
     th, td {
-      border: 1px solid #e0e0e0;
-      padding: 10px 14px;
+      border: 1px solid #e5e5e7;
+      padding: 10px 12px;
       text-align: left;
+      font-size: 13px;
     }
     th {
-      background-color: #f9f9fb;
+      background-color: #fbfbfd;
       font-weight: 600;
+      color: #1d1d1f;
     }
-    tr:nth-child(even) { background-color: #fafafa; }
-    .status-badge {
-      font-weight: bold;
-      font-size: 12px;
-      padding: 2px 6px;
-      border-radius: 4px;
+    .th-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
     }
-    .status-ok { background: #e6f4ea; color: #137333; }
-    .status-err { background: #fce8e6; color: #c5221f; }
+    tr:nth-child(even) { background-color: #fafafc; }
   </style>
 </head>
 <body>
 
-  <h2>Stock Checker</h2>
-  <p>Paste product codes (one per line or directly from Excel):</p>
+  <div class="container">
+    <h2>Admin Stock Dashboard</h2>
+    <p>Paste product codes directly from Excel below:</p>
 
-  <textarea id="productInput" placeholder="SM-F9760ZKPTGY&#10;SM-S928BZDAGTO"></textarea>
+    <textarea id="productInput" placeholder="SM-F9760ZKPTGY&#10;SM-S928BZDAGTO"></textarea>
 
-  <div class="btn-group">
-    <button id="fetchBtn" onclick="checkStock()">Fetch Stock Levels</button>
-    <button id="copyBtn" class="secondary" onclick="copyResults()" disabled>Copy Table for Excel</button>
+    <div class="btn-group">
+      <button id="fetchBtn" onclick="checkStock()">Fetch Product Data</button>
+    </div>
+
+    <table id="resultTable" style="display: none;">
+      <thead>
+        <tr>
+          <th>
+            <div class="th-content">
+              <span>Product Code</span>
+              <button class="btn-copy-header" onclick="copyColumn(0, 'Product Code')">📋 Copy</button>
+            </div>
+          </th>
+          <th>
+            <div class="th-content">
+              <span>Stock Level</span>
+              <button class="btn-copy-header" onclick="copyColumn(1, 'Stock Level')">📋 Copy</button>
+            </div>
+          </th>
+          <th>
+            <div class="th-content">
+              <span>Stock Level Status</span>
+              <button class="btn-copy-header" onclick="copyColumn(2, 'Stock Level Status')">📋 Copy</button>
+            </div>
+          </th>
+          <th>
+            <div class="th-content">
+              <span>Price</span>
+              <button class="btn-copy-header" onclick="copyColumn(3, 'Price')">📋 Copy</button>
+            </div>
+          </th>
+          <th>
+            <div class="th-content">
+              <span>Shipping ETA</span>
+              <button class="btn-copy-header" onclick="copyColumn(4, 'Shipping ETA')">📋 Copy</button>
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
   </div>
 
-  <table id="resultTable" style="display: none;">
-    <thead>
-      <tr>
-        <th>Product Code</th>
-        <th>Stock Level</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody id="tableBody"></tbody>
-  </table>
-
-<script>
+  <script>
     async function checkStock() {
       const input = document.getElementById('productInput').value;
       const lines = input.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
@@ -109,7 +151,6 @@
       }
 
       const fetchBtn = document.getElementById('fetchBtn');
-      const copyBtn = document.getElementById('copyBtn');
       const table = document.getElementById('resultTable');
       const tbody = document.getElementById('tableBody');
 
@@ -120,7 +161,7 @@
 
       for (const code of lines) {
         const row = document.createElement('tr');
-        row.innerHTML = `<td>${code}</td><td>Loading...</td><td>Loading...</td>`;
+        row.innerHTML = `<td>${code}</td><td>Loading...</td><td>Loading...</td><td>Loading...</td><td>Loading...</td>`;
         tbody.appendChild(row);
 
         try {
@@ -139,10 +180,14 @@
           const responseText = await response.text();
           let stock = 'Not found';
           let status = 'Not found';
+          let price = 'Not found';
+          let shippingEta = 'Not found';
 
-          // 1. Try parsing response as JSON
+          // 1. Try JSON parsing
           try {
             const data = JSON.parse(responseText);
+            
+            // Stock & Status
             if (data.stock) {
               if (data.stock.stockLevel !== undefined) stock = data.stock.stockLevel;
               if (data.stock.stockLevelStatus !== undefined) status = data.stock.stockLevelStatus;
@@ -150,45 +195,62 @@
               if (data.stockLevel !== undefined) stock = data.stockLevel;
               if (data.stockLevelStatus !== undefined) status = data.stockLevelStatus;
             }
+
+            // Price
+            if (data.price && data.price.formattedValue) {
+              price = data.price.formattedValue;
+            } else if (data.formattedValue) {
+              price = data.formattedValue;
+            }
+
+            // Shipping ETA
+            if (data.shippingETA) {
+              shippingEta = data.shippingETA;
+            }
           } catch (e) {
-            // 2. If not JSON, parse as XML
+            // 2. Fallback to XML parsing
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(responseText, "text/xml");
             
             const stockNode = xmlDoc.querySelector("stockLevel") || xmlDoc.getElementsByTagName("stockLevel")[0];
             const statusNode = xmlDoc.querySelector("stockLevelStatus") || xmlDoc.getElementsByTagName("stockLevelStatus")[0];
+            const priceNode = xmlDoc.querySelector("price > formattedValue") || xmlDoc.querySelector("formattedValue") || xmlDoc.getElementsByTagName("formattedValue")[0];
+            const etaNode = xmlDoc.querySelector("shippingETA") || xmlDoc.getElementsByTagName("shippingETA")[0];
             
             if (stockNode && stockNode.textContent) stock = stockNode.textContent;
             if (statusNode && statusNode.textContent) status = statusNode.textContent;
+            if (priceNode && priceNode.textContent) price = priceNode.textContent;
+            if (etaNode && etaNode.textContent) shippingEta = etaNode.textContent;
           }
 
           row.cells[1].textContent = stock;
           row.cells[2].textContent = status;
+          row.cells[3].textContent = price;
+          row.cells[4].textContent = shippingEta;
         } catch (err) {
           row.cells[1].textContent = 'N/A';
           row.cells[2].textContent = 'Error';
+          row.cells[3].textContent = 'N/A';
+          row.cells[4].textContent = 'N/A';
         }
       }
 
       fetchBtn.disabled = false;
-      fetchBtn.textContent = 'Fetch Stock Levels';
-      copyBtn.disabled = false;
+      fetchBtn.textContent = 'Fetch Product Data';
     }
 
-    function copyResults() {
+    function copyColumn(columnIndex, columnName) {
       const rows = document.querySelectorAll('#tableBody tr');
-      // Tab-separated header for two columns
-      let tsv = 'Stock Level\tStock Level Status\n';
+      let textToCopy = `${columnName}\n`;
 
       rows.forEach(row => {
-        const stock = row.cells[1].textContent;
-        const status = row.cells[2].textContent;
-        // Copies both columns tab-separated so Excel places them into adjacent cells
-        tsv += `${stock}\t${status}\n`;
+        if (row.cells[columnIndex]) {
+          textToCopy += `${row.cells[columnIndex].textContent}\n`;
+        }
       });
 
-      navigator.clipboard.writeText(tsv).then(() => {
-        alert('Copied Stock Level & Status columns! You can now paste directly into Excel.');
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        alert(`Copied '${columnName}' column! Ready to paste into Excel.`);
       }).catch(err => {
         alert('Failed to copy: ' + err);
       });
