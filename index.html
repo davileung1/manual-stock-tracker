@@ -57,7 +57,7 @@
     .btn-copy-header {
       background-color: #e5e5ea;
       color: #1d1d1f;
-      padding: 4px 8px;
+      padding: 4px 10px;
       font-size: 12px;
       border-radius: 6px;
       margin-left: 6px;
@@ -172,11 +172,16 @@
         tbody.appendChild(row);
 
         try {
-          const targetUrl = `https://shop.samsung.com/tokocommercewebservices/v2/hk_en/products/${encodeURIComponent(code)}`;
+          // Cache busting via timestamp URL query parameter
+          const timestamp = Date.now();
+          const targetUrl = `https://shop.samsung.com/tokocommercewebservices/v2/hk_en/products/${encodeURIComponent(code)}?_=${timestamp}`;
           
           const response = await fetch(targetUrl, {
+            cache: 'no-store', // Prevent browser cache
             headers: {
-              'Accept': 'application/json, application/xml, text/xml'
+              'Accept': 'application/json, application/xml, text/xml',
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache'
             }
           });
 
