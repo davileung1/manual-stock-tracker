@@ -177,16 +177,16 @@
 
     function copyResults() {
       const rows = document.querySelectorAll('#tableBody tr');
-      let tsv = 'Product Code\tStock Level\n';
+      let textToCopy = 'Stock Level\n';
 
       rows.forEach(row => {
-        const code = row.cells[0].textContent;
+        // Grabs only cell index 1 (Stock Level column)
         const stock = row.cells[1].textContent;
-        tsv += `${code}\t${stock}\n`;
+        textToCopy += `${stock}\n`;
       });
 
-      navigator.clipboard.writeText(tsv).then(() => {
-        alert('Copied! You can now paste directly into Excel.');
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        alert('Copied stock values! You can now paste directly into your Excel stock column.');
       }).catch(err => {
         alert('Failed to copy: ' + err);
       });
