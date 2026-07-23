@@ -239,9 +239,9 @@
       fetchBtn.textContent = 'Fetch Product Data';
     }
 
-    function copyColumn(columnIndex, columnName) {
+   function copyColumn(columnIndex, columnName) {
       const rows = document.querySelectorAll('#tableBody tr');
-      let textToCopy = `${columnName}\n`;
+      let textToCopy = '';
 
       rows.forEach(row => {
         if (row.cells[columnIndex]) {
@@ -249,11 +249,17 @@
         }
       });
 
+      if (!textToCopy.trim()) {
+        alert('No data available to copy!');
+        return;
+      }
+
       navigator.clipboard.writeText(textToCopy).then(() => {
-        alert(`Copied '${columnName}' column! Ready to paste into Excel.`);
+        alert(`Copied '${columnName}' values (without header)! Ready to paste into Excel.`);
       }).catch(err => {
         alert('Failed to copy: ' + err);
       });
+    }
     }
   </script>
 </body>
