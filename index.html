@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Admin Stock Tracker - Samsung eStore</title>
+  <title>Product Checker</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      max-width: 1100px;
+      max-width: 1200px;
       margin: 40px auto;
       padding: 0 20px;
       color: #333;
@@ -62,6 +62,7 @@
       border-radius: 6px;
       margin-left: 6px;
       font-weight: normal;
+      transition: all 0.2s ease;
     }
     .btn-copy-header:hover { background-color: #d1d1d6; }
     table {
@@ -92,7 +93,7 @@
 <body>
 
   <div class="container">
-    <h2>Admin Stock Dashboard</h2>
+    <h2>Project Checker</h2>
     <p>Paste product codes directly from Excel below:</p>
 
     <textarea id="productInput" placeholder="SM-F9760ZKPTGY&#10;SM-S928BZDAGTO"></textarea>
@@ -102,7 +103,7 @@
     </div>
 
     <table id="resultTable" style="display: none;">
-     <thead>
+      <thead>
         <tr>
           <th>
             <div class="th-content">
@@ -124,14 +125,20 @@
           </th>
           <th>
             <div class="th-content">
-              <span>Price</span>
-              <button class="btn-copy-header" onclick="copyColumn(3, 'Price', this)">Copy</button>
+              <span>RRP</span>
+              <button class="btn-copy-header" onclick="copyColumn(3, 'RRP', this)">Copy</button>
+            </div>
+          </th>
+          <th>
+            <div class="th-content">
+              <span>NRP</span>
+              <button class="btn-copy-header" onclick="copyColumn(4, 'NRP', this)">Copy</button>
             </div>
           </th>
           <th>
             <div class="th-content">
               <span>Shipping ETA</span>
-              <button class="btn-copy-header" onclick="copyColumn(4, 'Shipping ETA', this)">Copy</button>
+              <button class="btn-copy-header" onclick="copyColumn(5, 'Shipping ETA', this)">Copy</button>
             </div>
           </th>
         </tr>
@@ -161,7 +168,7 @@
 
       for (const code of lines) {
         const row = document.createElement('tr');
-        row.innerHTML = `<td>${code}</td><td>Loading...</td><td>Loading...</td><td>Loading...</td><td>Loading...</td>`;
+        row.innerHTML = `<td>${code}</td><td>Loading...</td><td>Loading...</td><td>Loading...</td><td>Loading...</td><td>Loading...</td>`;
         tbody.appendChild(row);
 
         try {
@@ -180,7 +187,8 @@
           const responseText = await response.text();
           let stock = 'Not found';
           let status = 'Not found';
-          let price = 'Not found';
+          let rrp = 'Not found';
+          let nrp = 'Not found';
           let shippingEta = 'Not found';
 
           // 1. Try JSON parsing
@@ -196,11 +204,16 @@
               if (data.stockLevelStatus !== undefined) status = data.stockLevelStatus;
             }
 
-            // Price
+            // RRP (Price)
             if (data.price && data.price.formattedValue) {
-              price = data.price.formattedValue;
+              rrp = data.price.formattedValue;
             } else if (data.formattedValue) {
-              price = data.formattedValue;
+              rrp = data.formattedValue;
+            }
+
+            // NRP (Promotion Price)
+            if (data.promotionPrice && data.promotionPrice.formattedValue) {
+              nrp = data.promotionPrice.formattedValue;
             }
 
             // Shipping ETA
@@ -214,24 +227,28 @@
             
             const stockNode = xmlDoc.querySelector("stockLevel") || xmlDoc.getElementsByTagName("stockLevel")[0];
             const statusNode = xmlDoc.querySelector("stockLevelStatus") || xmlDoc.getElementsByTagName("stockLevelStatus")[0];
-            const priceNode = xmlDoc.querySelector("price > formattedValue") || xmlDoc.querySelector("formattedValue") || xmlDoc.getElementsByTagName("formattedValue")[0];
+            const rrpNode = xmlDoc.querySelector("price > formattedValue") || xmlDoc.querySelector("formattedValue");
+            const nrpNode = xmlDoc.querySelector("promotionPrice > formattedValue");
             const etaNode = xmlDoc.querySelector("shippingETA") || xmlDoc.getElementsByTagName("shippingETA")[0];
             
             if (stockNode && stockNode.textContent) stock = stockNode.textContent;
             if (statusNode && statusNode.textContent) status = statusNode.textContent;
-            if (priceNode && priceNode.textContent) price = priceNode.textContent;
+            if (rrpNode && rrpNode.textContent) rrp = rrpNode.textContent;
+            if (nrpNode && nrpNode.textContent) nrp = nrpNode.textContent;
             if (etaNode && etaNode.textContent) shippingEta = etaNode.textContent;
           }
 
           row.cells[1].textContent = stock;
           row.cells[2].textContent = status;
-          row.cells[3].textContent = price;
-          row.cells[4].textContent = shippingEta;
+          row.cells[3].textContent = rrp;
+          row.cells[4].textContent = nrp;
+          row.cells[5].textContent = shippingEta;
         } catch (err) {
           row.cells[1].textContent = 'N/A';
           row.cells[2].textContent = 'Error';
           row.cells[3].textContent = 'N/A';
           row.cells[4].textContent = 'N/A';
+          row.cells[5].textContent = 'N/A';
         }
       }
 
@@ -239,7 +256,7 @@
       fetchBtn.textContent = 'Fetch Product Data';
     }
 
-   function copyColumn(columnIndex, columnName, btnElement) {
+    function copyColumn(columnIndex, columnName, btnElement) {
       const rows = document.querySelectorAll('#tableBody tr');
       let textToCopy = '';
 
@@ -254,7 +271,6 @@
       }
 
       navigator.clipboard.writeText(textToCopy).then(() => {
-        // Change button feedback temporarily
         const originalText = btnElement.textContent;
         btnElement.textContent = '✓ Copied!';
         btnElement.style.backgroundColor = '#e6f4ea';
