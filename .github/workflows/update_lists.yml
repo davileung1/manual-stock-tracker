@@ -1,11 +1,13 @@
 name: Update Product Lists via Python
 
 on:
-  repository_dispatch:
-    types: [update-list]
+  issues:
+    types: [opened]
 
 jobs:
   run-python-script:
+    # Only run if the issue title starts with "UPDATE_LIST:"
+    if: startsWith(github.event.issue.title, 'UPDATE_LIST:')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository code
@@ -23,3 +25,8 @@ jobs:
         env:
           APP_GITHUB_TOKEN: ${{ secrets.APP_GITHUB_TOKEN }}
         run: python save_list.py
+
+      - name: Close Issue Automatically
+        uses: peter-evans/close-issue@v3
+        with:
+          comment: "Auto-processed by Python script."
