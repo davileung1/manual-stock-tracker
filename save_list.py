@@ -4,7 +4,6 @@ import base64
 import sys
 import requests
 
-# Read environment variables set by GitHub Actions
 TOKEN = os.environ.get("APP_GITHUB_TOKEN")
 REPO_OWNER = "davileung1"
 REPO_NAME = "product-checker"
@@ -13,15 +12,24 @@ FILE_PATH = "lists.json"
 API_URL = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/contents/{FILE_PATH}"
 
 def update_lists():
-    # Payload passed from frontend via GitHub Action event
+    # Read issue data from GitHub Action event payload
     event_payload_path = os.environ.get("GITHUB_EVENT_PATH")
     with open(event_payload_path, "r") as f:
         event_data = json.load(f)
 
-    client_payload = event_data.get("client_payload", {})
-    action_type = client_payload.get("action")  # "save" or "delete"
-    list_name = client_payload.get("list_name")
-    codes = client_payload.get("codes", "")
+    issue = event_data.get("issue", {})
+    issue_body = issue.get("body", "")
+
+    try:
+        # Expecting JSON formatted string inside the issue body
+        payload = json.loads(issue_body)
+    except Exception as e:
+        print(f"Failed to parse issue body as JSON: {e}")
+        sys.exit(1)
+
+    action_type = payload.get("action")  # "save" or "delete"
+    list_name = payload.get("list_name")
+    codes = payload.get("codes", "")
 
     headers = {
         "Authorization": f"Bearer {TOKEN}",
@@ -65,7 +73,7 @@ def update_lists():
     put_response = requests.put(API_URL, headers=headers, json=put_body)
 
     if put_response.status_code in [200, 201]:
-        print(f"Successfully updated lists.json via Python!")
+        print("Successfully updated lists.json via Python!")
     else:
         print(f"Failed to update GitHub: {put_response.text}")
         sys.exit(1)
