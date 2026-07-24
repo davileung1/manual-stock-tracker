@@ -22,6 +22,23 @@
     h2 { margin-bottom: 4px; color: #1d1d1f; }
     p { color: #6e6e73; margin-top: 0; margin-bottom: 20px; }
     
+    .config-bar {
+      margin-bottom: 15px;
+      padding: 10px;
+      background: #f0f0f5;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+    .config-bar input {
+      flex: 1;
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
     .list-buttons-bar {
       display: flex;
       gap: 8px;
@@ -40,6 +57,8 @@
       cursor: pointer;
       font-weight: 500;
       transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
     }
     .quick-list-btn:hover {
       background-color: #0071e3;
@@ -127,14 +146,20 @@
     <h2>Admin Stock Dashboard</h2>
     <p>Paste product codes below, or click a quick-list button:</p>
 
-    <!-- Quick List Buttons Container (Pinned on Top of Text Area) -->
-    <div id="quickListBar" class="list-buttons-bar"></div>
+    <!-- Token Configuration (enter token once per device/session) -->
+    <div class="config-bar">
+      <label for="ghToken"><strong>GitHub Access Token:</strong></label>
+      <input type="password" id="ghToken" placeholder="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">
+    </div>
+
+    <!-- Quick List Buttons Container -->
+    <div id="quickListBar" class="list-buttons-bar">Loading lists from GitHub...</div>
 
     <textarea id="productInput" placeholder="SM-F9760ZKPTGY&#10;SM-S928BZDAGTO"></textarea>
 
     <div class="btn-group">
       <button id="fetchBtn" onclick="checkStock()">Fetch Product Data</button>
-      <button class="secondary" id="saveUrlBtn" onclick="saveListToUrl(this)">💾 Save List to URL Button</button>
+      <button class="secondary" id="saveUrlBtn" onclick="saveListToGithub(this)">☁️ Save List to GitHub</button>
     </div>
 
     <table id="resultTable" style="display: none;">
@@ -183,82 +208,157 @@
   </div>
 
   <script>
+    // GitHub Repo Configuration
+    const REPO_OWNER = 'davileung1';
+    const REPO_NAME = 'manual-stock-tracker';
+    const FILE_PATH = 'lists.json';
+    const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
+
+    let globalLists = {};
+    let fileSha = ''; // Required by GitHub API when updating files
+
     document.addEventListener('DOMContentLoaded', () => {
-      loadListFromUrl();
+      fetchListsFromGithub();
     });
 
-    // Check if page loaded with ?codes=... or ?name=... in URL
-    function loadListFromUrl() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const codesParam = urlParams.get('codes');
-      const nameParam = urlParams.get('name') || 'Loaded List';
-
-      if (codesParam) {
-        const codesArray = codesParam.split(',');
-        document.getElementById('productInput').value = codesArray.join('\n');
+    // 1. Fetch lists.json from GitHub
+    async function fetchListsFromGithub() {
+      const bar = document.getElementById('quickListBar');
+      try {
+        const response = await fetch(`${API_URL}?_=${Date.now()}`);
+        if (response.status === 404) {
+          bar.innerHTML = '<em>No lists.json found in repository yet. Save one to create it!</em>';
+          return;
+        }
         
-        // Dynamically add button for this URL list
-        createListButton(nameParam, codesArray.join('\n'));
+        const data = await response.json();
+        fileSha = data.sha;
+        
+        // Decode base64 content from GitHub API
+        const jsonContent = decodeURIComponent(escape(atob(data.content)));
+        globalLists = JSON.parse(jsonContent);
+        
+        renderAllListButtons();
+      } catch (err) {
+        console.error('Error fetching lists:', err);
+        bar.innerHTML = '<em>Failed to load lists from GitHub.</em>';
       }
     }
 
-    function createListButton(listName, productCodesText) {
+    // 2. Render list buttons
+    function renderAllListButtons() {
       const bar = document.getElementById('quickListBar');
-      
-      // Check if button already exists
-      const existingButtons = Array.from(bar.querySelectorAll('button'));
-      const exists = existingButtons.some(btn => btn.dataset.name === listName);
-      
-      if (!exists) {
+      bar.innerHTML = '';
+
+      const keys = Object.keys(globalLists);
+      if (keys.length === 0) {
+        bar.innerHTML = '<em>No saved lists.</em>';
+        return;
+      }
+
+      for (const [listName, codesText] of Object.entries(globalLists)) {
         const btn = document.createElement('button');
         btn.className = 'quick-list-btn';
         btn.textContent = `📌 ${listName}`;
-        btn.dataset.name = listName;
         
         btn.onclick = () => {
-          document.getElementById('productInput').value = productCodesText;
+          document.getElementById('productInput').value = codesText;
         };
-        
+
+        const delBtn = document.createElement('span');
+        delBtn.textContent = ' ✕';
+        delBtn.style.cssText = 'cursor:pointer; margin-left:6px; color:#8e8e93; font-size:11px;';
+        delBtn.title = 'Delete list';
+        delBtn.onclick = (e) => {
+          e.stopPropagation();
+          deleteListFromGithub(listName);
+        };
+
+        btn.appendChild(delBtn);
         bar.appendChild(btn);
       }
     }
 
-    function saveListToUrl(btnElement) {
+    // 3. Save new list to GitHub
+    async function saveListToGithub(btnElement) {
+      const token = document.getElementById('ghToken').value.trim();
+      if (!token) {
+        alert('Please enter your GitHub Access Token in the top bar to commit changes to GitHub.');
+        return;
+      }
+
       const input = document.getElementById('productInput').value.trim();
       if (!input) {
         alert('Please paste product codes into the box first.');
         return;
       }
 
-      const listName = prompt('Enter a name for this product list (e.g., Foldables, Daily Check):');
+      const listName = prompt('Enter a name for this product list:');
       if (!listName) return;
 
-      const codesArray = input.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-      const codesParam = encodeURIComponent(codesArray.join(','));
-      const nameParam = encodeURIComponent(listName.trim());
+      globalLists[listName.trim()] = input;
+      await commitToGithub(token, `Add list: ${listName.trim()}`, btnElement);
+    }
 
-      // Create new shareable URL
-      const newUrl = `${window.location.origin}${window.location.pathname}?name=${nameParam}&codes=${codesParam}`;
+    // 4. Delete list from GitHub
+    async function deleteListFromGithub(listName) {
+      const token = document.getElementById('ghToken').value.trim();
+      if (!token) {
+        alert('Please enter your GitHub Access Token in the top bar to delete items from GitHub.');
+        return;
+      }
 
-      // Update browser address bar without reloading page
-      window.history.pushState({ path: newUrl }, '', newUrl);
+      if (confirm(`Delete list "${listName}" from GitHub?`)) {
+        delete globalLists[listName];
+        await commitToGithub(token, `Delete list: ${listName}`);
+      }
+    }
 
-      // Add quick-access button on top
-      createListButton(listName.trim(), input);
+    // Helper: Push updated JSON to GitHub REST API
+    async function commitToGithub(token, commitMessage, btnElement = null) {
+      const contentEncoded = btoa(unescape(encodeURIComponent(JSON.stringify(globalLists, null, 2))));
+      
+      const body = {
+        message: commitMessage,
+        content: contentEncoded,
+        sha: fileSha || undefined
+      };
 
-      // Copy shareable link to clipboard
-      navigator.clipboard.writeText(newUrl).then(() => {
-        const originalText = btnElement.textContent;
-        btnElement.textContent = '✓ Button Added & Link Copied!';
-        btnElement.style.backgroundColor = '#e6f4ea';
-        btnElement.style.color = '#137333';
+      try {
+        const res = await fetch(API_URL, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/vnd.github.v3+json'
+          },
+          body: JSON.stringify(body)
+        });
 
-        setTimeout(() => {
-          btnElement.textContent = originalText;
-          btnElement.style.backgroundColor = '';
-          btnElement.style.color = '';
-        }, 2000);
-      });
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.message || 'GitHub API update failed');
+        }
+
+        const resData = await res.json();
+        fileSha = resData.content.sha;
+        renderAllListButtons();
+
+        if (btnElement) {
+          const originalText = btnElement.textContent;
+          btnElement.textContent = '✓ Saved to GitHub!';
+          btnElement.style.backgroundColor = '#e6f4ea';
+          btnElement.style.color = '#137333';
+
+          setTimeout(() => {
+            btnElement.textContent = originalText;
+            btnElement.style.backgroundColor = '';
+            btnElement.style.color = '';
+          }, 2000);
+        }
+      } catch (err) {
+        alert('Failed to save to GitHub: ' + err.message);
+      }
     }
 
     async function checkStock() {
@@ -285,7 +385,6 @@
         tbody.appendChild(row);
 
         try {
-          // Cache-busting timestamp URL parameter
           const timestamp = Date.now();
           const targetUrl = `https://shop.samsung.com/tokocommercewebservices/v2/hk_en/products/${encodeURIComponent(code)}?_=${timestamp}`;
           
@@ -309,11 +408,8 @@
           let nrp = 'Not found';
           let shippingEta = 'Not found';
 
-          // 1. Try JSON parsing
           try {
             const data = JSON.parse(responseText);
-            
-            // Stock & Status
             if (data.stock) {
               if (data.stock.stockLevel !== undefined) stock = data.stock.stockLevel;
               if (data.stock.stockLevelStatus !== undefined) status = data.stock.stockLevelStatus;
@@ -322,24 +418,20 @@
               if (data.stockLevelStatus !== undefined) status = data.stockLevelStatus;
             }
 
-            // RRP (Price)
             if (data.price && data.price.formattedValue) {
               rrp = data.price.formattedValue;
             } else if (data.formattedValue) {
               rrp = data.formattedValue;
             }
 
-            // NRP (Promotion Price)
             if (data.promotionPrice && data.promotionPrice.formattedValue) {
               nrp = data.promotionPrice.formattedValue;
             }
 
-            // Shipping ETA
             if (data.shippingETA) {
               shippingEta = data.shippingETA;
             }
           } catch (e) {
-            // 2. Fallback to XML parsing
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(responseText, "text/xml");
             
@@ -384,9 +476,7 @@
         }
       });
 
-      if (!textToCopy.trim()) {
-        return;
-      }
+      if (!textToCopy.trim()) return;
 
       navigator.clipboard.writeText(textToCopy).then(() => {
         const originalText = btnElement.textContent;
