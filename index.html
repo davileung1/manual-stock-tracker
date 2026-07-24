@@ -249,7 +249,7 @@
       }
     }
 
-    // 3. Save new list (Triggers Python script via GitHub Action)
+    // 3. Save new list (Triggers Python script via GitHub Issue creation)
     async function saveListToGithub(btnElement) {
       const input = document.getElementById('productInput').value.trim();
       if (!input) {
@@ -260,56 +260,28 @@
       const listName = prompt('Enter a name for this product list:');
       if (!listName) return;
 
-      triggerPythonWorkflow('save', listName.trim(), input, btnElement);
+      triggerPythonWorkflow('save', listName.trim(), input);
     }
 
-    // 4. Delete list (Triggers Python script via GitHub Action)
+    // 4. Delete list (Triggers Python script via GitHub Issue creation)
     async function deleteListFromGithub(listName) {
       if (confirm(`Delete list "${listName}" from GitHub?`)) {
         triggerPythonWorkflow('delete', listName, '');
       }
     }
 
-    // Helper: Sends dispatch event to GitHub Actions to execute save_list.py
-    async function triggerPythonWorkflow(action, listName, codes, btnElement = null) {
-      const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/dispatches`;
+    // Helper: Redirects to GitHub Issue creation page to trigger update_lists.yml anonymously
+    function triggerPythonWorkflow(action, listName, codes) {
+      const issueTitle = `UPDATE_LIST: ${listName}`;
+      const issueBody = JSON.stringify({
+        action: action,
+        list_name: listName,
+        codes: codes
+      }, null, 2);
 
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Accept': 'application/vnd.github.v3+json'
-          },
-          body: JSON.stringify({
-            event_type: 'update-list',
-            client_payload: {
-              action: action,
-              list_name: listName,
-              codes: codes
-            }
-          })
-        });
+      const newIssueUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/new?title=${encodeURIComponent(issueTitle)}&body=${encodeURIComponent(issueBody)}`;
 
-        if (btnElement) {
-          const originalText = btnElement.textContent;
-          btnElement.textContent = '⚡ Saving via Python...';
-          btnElement.disabled = true;
-
-          // Re-enable button and auto-refresh lists after Python runner completes (~8s)
-          setTimeout(() => {
-            btnElement.textContent = originalText;
-            btnElement.disabled = false;
-            fetchListsFromGithub();
-          }, 8000);
-        } else {
-          setTimeout(() => {
-            fetchListsFromGithub();
-          }, 8000);
-        }
-
-      } catch (err) {
-        alert('Failed to trigger workflow: ' + err.message);
-      }
+      window.open(newIssueUrl, '_blank');
     }
 
     // 5. Stock Fetcher Logic
