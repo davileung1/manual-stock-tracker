@@ -21,23 +21,6 @@
     }
     h2 { margin-bottom: 4px; color: #1d1d1f; }
     p { color: #6e6e73; margin-top: 0; margin-bottom: 20px; }
-    
-    .config-bar {
-      margin-bottom: 15px;
-      padding: 10px;
-      background: #f0f0f5;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 13px;
-    }
-    .config-bar input {
-      flex: 1;
-      padding: 6px 10px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-    }
 
     .list-buttons-bar {
       display: flex;
@@ -146,12 +129,6 @@
     <h2>eStore Product Checker</h2>
     <p>Paste product codes below, or click a quick-list button:</p>
 
-    <!-- Token Configuration (enter token once per device/session) -->
-    <div class="config-bar">
-      <label for="ghToken"><strong>GitHub Access Token:</strong></label>
-      <input type="password" id="ghToken" placeholder="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">
-    </div>
-
     <!-- Quick List Buttons Container -->
     <div id="quickListBar" class="list-buttons-bar">Loading lists from GitHub...</div>
 
@@ -210,12 +187,11 @@
   <script>
     // GitHub Repo Configuration
     const REPO_OWNER = 'davileung1';
-    const REPO_NAME = 'product-checker';
+    const REPO_NAME = 'manual-stock-tracker';
     const FILE_PATH = 'lists.json';
-    const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
+    const RAW_JSON_URL = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/${FILE_PATH}`;
 
     let globalLists = {};
-    let fileSha = ''; // Required by GitHub API when updating files
 
     document.addEventListener('DOMContentLoaded', () => {
       fetchListsFromGithub();
@@ -225,19 +201,13 @@
     async function fetchListsFromGithub() {
       const bar = document.getElementById('quickListBar');
       try {
-        const response = await fetch(`${API_URL}?_=${Date.now()}`);
+        const response = await fetch(`${RAW_JSON_URL}?_=${Date.now()}`);
         if (response.status === 404) {
           bar.innerHTML = '<em>No lists.json found in repository yet. Save one to create it!</em>';
           return;
         }
         
-        const data = await response.json();
-        fileSha = data.sha;
-        
-        // Decode base64 content from GitHub API
-        const jsonContent = decodeURIComponent(escape(atob(data.content)));
-        globalLists = JSON.parse(jsonContent);
-        
+        globalLists = await response.json();
         renderAllListButtons();
       } catch (err) {
         console.error('Error fetching lists:', err);
@@ -279,14 +249,8 @@
       }
     }
 
-    // 3. Save new list to GitHub
+    // 3. Save new list (Triggers Python script via GitHub Action)
     async function saveListToGithub(btnElement) {
-      const token = document.getElementById('ghToken').value.trim();
-      if (!token) {
-        alert('Please enter your GitHub Access Token in the top bar to commit changes to GitHub.');
-        return;
-      }
-
       const input = document.getElementById('productInput').value.trim();
       if (!input) {
         alert('Please paste product codes into the box first.');
@@ -296,71 +260,59 @@
       const listName = prompt('Enter a name for this product list:');
       if (!listName) return;
 
-      globalLists[listName.trim()] = input;
-      await commitToGithub(token, `Add list: ${listName.trim()}`, btnElement);
+      triggerPythonWorkflow('save', listName.trim(), input, btnElement);
     }
 
-    // 4. Delete list from GitHub
+    // 4. Delete list (Triggers Python script via GitHub Action)
     async function deleteListFromGithub(listName) {
-      const token = document.getElementById('ghToken').value.trim();
-      if (!token) {
-        alert('Please enter your GitHub Access Token in the top bar to delete items from GitHub.');
-        return;
-      }
-
       if (confirm(`Delete list "${listName}" from GitHub?`)) {
-        delete globalLists[listName];
-        await commitToGithub(token, `Delete list: ${listName}`);
+        triggerPythonWorkflow('delete', listName, '');
       }
     }
 
-    // Helper: Push updated JSON to GitHub REST API
-    async function commitToGithub(token, commitMessage, btnElement = null) {
-      const contentEncoded = btoa(unescape(encodeURIComponent(JSON.stringify(globalLists, null, 2))));
-      
-      const body = {
-        message: commitMessage,
-        content: contentEncoded,
-        sha: fileSha || undefined
-      };
+    // Helper: Sends dispatch event to GitHub Actions to execute save_list.py
+    async function triggerPythonWorkflow(action, listName, codes, btnElement = null) {
+      const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/dispatches`;
 
       try {
-        const res = await fetch(API_URL, {
-          method: 'PUT',
+        const res = await fetch(url, {
+          method: 'POST',
           headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
             'Accept': 'application/vnd.github.v3+json'
           },
-          body: JSON.stringify(body)
+          body: JSON.stringify({
+            event_type: 'update-list',
+            client_payload: {
+              action: action,
+              list_name: listName,
+              codes: codes
+            }
+          })
         });
-
-        if (!res.ok) {
-          const errData = await res.json();
-          throw new Error(errData.message || 'GitHub API update failed');
-        }
-
-        const resData = await res.json();
-        fileSha = resData.content.sha;
-        renderAllListButtons();
 
         if (btnElement) {
           const originalText = btnElement.textContent;
-          btnElement.textContent = '✓ Saved to GitHub!';
-          btnElement.style.backgroundColor = '#e6f4ea';
-          btnElement.style.color = '#137333';
+          btnElement.textContent = '⚡ Saving via Python...';
+          btnElement.disabled = true;
 
+          // Re-enable button and auto-refresh lists after Python runner completes (~8s)
           setTimeout(() => {
             btnElement.textContent = originalText;
-            btnElement.style.backgroundColor = '';
-            btnElement.style.color = '';
-          }, 2000);
+            btnElement.disabled = false;
+            fetchListsFromGithub();
+          }, 8000);
+        } else {
+          setTimeout(() => {
+            fetchListsFromGithub();
+          }, 8000);
         }
+
       } catch (err) {
-        alert('Failed to save to GitHub: ' + err.message);
+        alert('Failed to trigger workflow: ' + err.message);
       }
     }
 
+    // 5. Stock Fetcher Logic
     async function checkStock() {
       const input = document.getElementById('productInput').value;
       const lines = input.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
@@ -466,6 +418,7 @@
       fetchBtn.textContent = 'Fetch Product Data';
     }
 
+    // 6. Copy Column Function
     function copyColumn(columnIndex, columnName, btnElement) {
       const rows = document.querySelectorAll('#tableBody tr');
       let textToCopy = '';
