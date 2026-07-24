@@ -22,33 +22,6 @@
     h2 { margin-bottom: 4px; color: #1d1d1f; }
     p { color: #6e6e73; margin-top: 0; margin-bottom: 20px; }
 
-    .list-buttons-bar {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
-      min-height: 32px;
-      align-items: center;
-    }
-    .quick-list-btn {
-      background-color: #f2f2f7;
-      color: #1d1d1f;
-      border: 1px solid #d2d2d7;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
-      cursor: pointer;
-      font-weight: 500;
-      transition: all 0.2s ease;
-      display: inline-flex;
-      align-items: center;
-    }
-    .quick-list-btn:hover {
-      background-color: #0071e3;
-      color: white;
-      border-color: #0071e3;
-    }
-    
     textarea {
       width: 100%;
       height: 150px;
@@ -77,11 +50,6 @@
       transition: background-color 0.2s;
     }
     button:hover { background-color: #0077ed; }
-    button.secondary {
-      background-color: #e5e5ea;
-      color: #1d1d1f;
-    }
-    button.secondary:hover { background-color: #d1d1d6; }
     button:disabled {
       background-color: #f2f2f7;
       color: #8e8e93;
@@ -127,16 +95,12 @@
 
   <div class="container">
     <h2>eStore Product Checker</h2>
-    <p>Paste product codes below, or click a quick-list button:</p>
-
-    <!-- Quick List Buttons Container -->
-    <div id="quickListBar" class="list-buttons-bar">Loading lists from GitHub...</div>
+    <p>Paste product codes below to check stock and pricing:</p>
 
     <textarea id="productInput" placeholder="SM-F9760ZKPTGY&#10;SM-S928BZDAGTO"></textarea>
 
     <div class="btn-group">
       <button id="fetchBtn" onclick="checkStock()">Fetch Product Data</button>
-      <button class="secondary" id="saveUrlBtn" onclick="saveListToGithub(this)">☁️ Save List to GitHub</button>
     </div>
 
     <table id="resultTable" style="display: none;">
@@ -185,106 +149,7 @@
   </div>
 
   <script>
-    // GitHub Repo Configuration
-    const REPO_OWNER = 'davileung1';
-    const REPO_NAME = 'product-checker';
-    const FILE_PATH = 'lists.json';
-    const RAW_JSON_URL = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/main/${FILE_PATH}`;
-
-    let globalLists = {};
-
-    document.addEventListener('DOMContentLoaded', () => {
-      fetchListsFromGithub();
-    });
-
-    // 1. Fetch lists.json from GitHub
-    async function fetchListsFromGithub() {
-      const bar = document.getElementById('quickListBar');
-      try {
-        const response = await fetch(`${RAW_JSON_URL}?_=${Date.now()}`);
-        if (response.status === 404) {
-          bar.innerHTML = '<em>No lists.json found in repository yet. Save one to create it!</em>';
-          return;
-        }
-        
-        globalLists = await response.json();
-        renderAllListButtons();
-      } catch (err) {
-        console.error('Error fetching lists:', err);
-        bar.innerHTML = '<em>Failed to load lists from GitHub.</em>';
-      }
-    }
-
-    // 2. Render list buttons
-    function renderAllListButtons() {
-      const bar = document.getElementById('quickListBar');
-      bar.innerHTML = '';
-
-      const keys = Object.keys(globalLists);
-      if (keys.length === 0) {
-        bar.innerHTML = '<em>No saved lists.</em>';
-        return;
-      }
-
-      for (const [listName, codesText] of Object.entries(globalLists)) {
-        const btn = document.createElement('button');
-        btn.className = 'quick-list-btn';
-        btn.textContent = `📌 ${listName}`;
-        
-        btn.onclick = () => {
-          document.getElementById('productInput').value = codesText;
-        };
-
-        const delBtn = document.createElement('span');
-        delBtn.textContent = ' ✕';
-        delBtn.style.cssText = 'cursor:pointer; margin-left:6px; color:#8e8e93; font-size:11px;';
-        delBtn.title = 'Delete list';
-        delBtn.onclick = (e) => {
-          e.stopPropagation();
-          deleteListFromGithub(listName);
-        };
-
-        btn.appendChild(delBtn);
-        bar.appendChild(btn);
-      }
-    }
-
-    // 3. Save new list (Triggers Python script via GitHub Issue creation)
-    async function saveListToGithub(btnElement) {
-      const input = document.getElementById('productInput').value.trim();
-      if (!input) {
-        alert('Please paste product codes into the box first.');
-        return;
-      }
-
-      const listName = prompt('Enter a name for this product list:');
-      if (!listName) return;
-
-      triggerPythonWorkflow('save', listName.trim(), input);
-    }
-
-    // 4. Delete list (Triggers Python script via GitHub Issue creation)
-    async function deleteListFromGithub(listName) {
-      if (confirm(`Delete list "${listName}" from GitHub?`)) {
-        triggerPythonWorkflow('delete', listName, '');
-      }
-    }
-
-    // Helper: Redirects to GitHub Issue creation page to trigger update_lists.yml anonymously
-    function triggerPythonWorkflow(action, listName, codes) {
-      const issueTitle = `UPDATE_LIST: ${listName}`;
-      const issueBody = JSON.stringify({
-        action: action,
-        list_name: listName,
-        codes: codes
-      }, null, 2);
-
-      const newIssueUrl = `https://github.com/${REPO_OWNER}/${REPO_NAME}/issues/new?title=${encodeURIComponent(issueTitle)}&body=${encodeURIComponent(issueBody)}`;
-
-      window.open(newIssueUrl, '_blank');
-    }
-
-    // 5. Stock Fetcher Logic
+    // 1. Stock & Data Fetcher Logic
     async function checkStock() {
       const input = document.getElementById('productInput').value;
       const lines = input.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
@@ -390,7 +255,7 @@
       fetchBtn.textContent = 'Fetch Product Data';
     }
 
-    // 6. Copy Column Function
+    // 2. Copy Column Function
     function copyColumn(columnIndex, columnName, btnElement) {
       const rows = document.querySelectorAll('#tableBody tr');
       let textToCopy = '';
